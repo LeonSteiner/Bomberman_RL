@@ -5,7 +5,7 @@ import random
 import numpy as np
 
 
-ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
+ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT']#, 'BOMB']
 
 
 def setup(self):
@@ -30,6 +30,7 @@ def setup(self):
         self.logger.info("Loading model from saved state.")
         with open("my-saved-model.pt", "rb") as file:
             self.model = pickle.load(file)
+    self.inv_num = 0
 
 
 def act(self, game_state: dict) -> str:
@@ -46,7 +47,7 @@ def act(self, game_state: dict) -> str:
     if self.train and random.random() < random_prob:
         self.logger.debug("Choosing action purely at random.")
         # 80%: walk in any direction. 10% wait. 10% bomb.
-        return np.random.choice(ACTIONS, p=[.2, .2, .2, .2, .1, .1])
+        return np.random.choice(ACTIONS, p=[.2, .2, .2, .2, .2])
 
     self.logger.debug("Querying model for action.")
     return np.random.choice(ACTIONS, p=self.model)
@@ -71,9 +72,12 @@ def state_to_features(game_state: dict) -> np.array:
         return None
 
     # For example, you could construct several channels of equal shape, ...
+    full_field = np.copy(game_state['field'])
+    coin_locations = np.array(game_state['coins']).T.tolist()
+    full_field[tuple(coin_locations)] = 2 # coins have value 2 on board
     channels = []
     channels.append(...)
     # concatenate them as a feature tensor (they must have the same shape), ...
     stacked_channels = np.stack(channels)
     # and return them as a vector
-    return stacked_channels.reshape(-1)
+    return full_field.reshape(-1) #stacked_channels.reshape(-1)
