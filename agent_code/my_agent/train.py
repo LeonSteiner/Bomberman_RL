@@ -99,11 +99,6 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
 
     events.extend(ev for ev in custom_events(self, old_game_state, new_game_state))
 
-    try:
-        print(old_game_state['self'][-1], self_action, new_game_state['self'][-1], events)
-    except:
-        ...
-
     self.logger.debug(f'Encountered game event(s) {", ".join(map(repr, events))} in step {new_game_state["step"]}')
 
     # state_to_features is defined in callbacks.py
@@ -205,7 +200,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     self.inv_num = 0
 
     # decrease exploration rate after each game
-    self.exploration_rate = max(0.1, self.exploration_rate*0.999)
+    self.exploration_rate = max(0.1, self.exploration_rate*0.99)
 
 def reward_from_events(self, events: List[str]) -> int:
     """
