@@ -3,9 +3,13 @@ import pickle
 import random
 
 import numpy as np
+import torch
+import torch.nn as nn
+
+from .myfuncs import DQN
 
 
-ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT']#, 'BOMB']
+ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
 
 
 def setup(self):
@@ -25,11 +29,13 @@ def setup(self):
     if self.train or not os.path.isfile("my-saved-model.pt"):
         self.logger.info("Setting up model from scratch.")
         weights = np.random.rand(len(ACTIONS))
-        self.model = weights / weights.sum()
+        self.model = DQN(15, 15, 6)
+        print('new model')
     else:
         self.logger.info("Loading model from saved state.")
         with open("my-saved-model.pt", "rb") as file:
             self.model = pickle.load(file)
+        print('load model')
     self.inv_num = 0
 
 
@@ -43,14 +49,28 @@ def act(self, game_state: dict) -> str:
     :return: The action to take as a string.
     """
     # todo Exploration vs exploitation
-    random_prob = .1
-    if self.train and random.random() < random_prob:
-        self.logger.debug("Choosing action purely at random.")
-        # 80%: walk in any direction. 10% wait. 10% bomb.
-        return np.random.choice(ACTIONS, p=[.2, .2, .2, .2, .2])
-
     self.logger.debug("Querying model for action.")
-    return np.random.choice(ACTIONS, p=self.model)
+
+    if self.train:
+        # return a random action
+        if random.random() < self.exploration_rate:
+            self.logger.debug("Choosing action purely at random.")
+            return np.random.choice(ACTIONS, p=[.22, .22, .22, .22, .12, 0.])
+        # make policy net choose an action
+        else:
+            with torch.no_grad():
+                myprobs = self.policy_net(state_to_features(game_state).view(1,1,15,15)).detach().numpy()[0]
+            myprobs = myprobs[:-1]
+            self.Q_list.append(np.max(myprobs))
+            return ACTIONS[np.argmax(myprobs)]
+    else:
+        # choose only best action when not training
+        with torch.no_grad():
+            myprobs = self.model(state_to_features(game_state).view(1,1,15,15)).detach().numpy()[0]
+        myprobs = myprobs[:-1]
+        return ACTIONS[np.argmax(myprobs)] 
+    
+    
 
 
 def state_to_features(game_state: dict) -> np.array:
@@ -75,9 +95,7 @@ def state_to_features(game_state: dict) -> np.array:
     full_field = np.copy(game_state['field'])
     coin_locations = np.array(game_state['coins']).T.tolist()
     full_field[tuple(coin_locations)] = 2 # coins have value 2 on board
-    channels = []
-    channels.append(...)
-    # concatenate them as a feature tensor (they must have the same shape), ...
-    stacked_channels = np.stack(channels)
-    # and return them as a vector
-    return full_field.reshape(-1) #stacked_channels.reshape(-1)
+    full_field[game_state['self'][-1]] = 100 # own position has value 3
+    # now crop the outer borders bc they are always the same
+    full_field = full_field[1:-1, 1:-1]
+    return torch.from_numpy(full_field).float()
