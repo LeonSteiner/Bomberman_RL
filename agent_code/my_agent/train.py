@@ -94,9 +94,15 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
     """
 
     # Idea: Add your own events to hand out rewards
+
     self.total_steps += 1
 
     events.extend(ev for ev in custom_events(self, old_game_state, new_game_state))
+
+    try:
+        print(old_game_state['self'][-1], self_action, new_game_state['self'][-1], events)
+    except:
+        ...
 
     self.logger.debug(f'Encountered game event(s) {", ".join(map(repr, events))} in step {new_game_state["step"]}')
 
@@ -181,7 +187,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
                     transformed_param = param*COPY_RATE + (1-COPY_RATE)*target_state_dict[name]
                     self.target_net.state_dict()[name].copy_(transformed_param)'''
     # update target net every 10th round
-    if last_game_state['round']%10 == 0:
+    if last_game_state['round']%15 == 0:
         self.target_net.load_state_dict(self.policy_net.state_dict())
 
         with open("my-saved-model.pt", "wb") as file:
@@ -199,7 +205,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     self.inv_num = 0
 
     # decrease exploration rate after each game
-    self.exploration_rate = max(0.1, self.exploration_rate*0.99)
+    self.exploration_rate = max(0.1, self.exploration_rate*0.999)
 
 def reward_from_events(self, events: List[str]) -> int:
     """

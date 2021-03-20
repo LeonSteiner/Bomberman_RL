@@ -66,10 +66,10 @@ def custom_events(self, old_game_state: dict, new_game_state: dict):
 			new_clostest_coin_dist = np.sum(np.abs(new_coin_locations[old_clostest_coin_indx] - new_own_location))
 
 			# now make the rewards list
-			if old_clostest_coin_dist < new_clostest_coin_dist:
+			if old_clostest_coin_dist > new_clostest_coin_dist:
 				custom_events_list.append('MOVED_TO_COIN')
 			
-			elif old_clostest_coin_dist > new_clostest_coin_dist:
+			elif old_clostest_coin_dist < new_clostest_coin_dist:
 				custom_events_list.append('MOVED_AWAY_FROM_COIN')
 			
 
