@@ -52,9 +52,28 @@ def custom_events(self, old_game_state: dict, new_game_state: dict):
 	new_own_location = np.asarray(new_game_state['self'][-1])
 	old_own_location = np.asarray(old_game_state['self'][-1])
 
+	old_clostest_coin_indx = False
+	old_clostest_coin_dist = 1000
+	try:
+		for i, old_coins in enumerate(old_game_state['coins']):
+			dummy_dist = sum(abs(old_coins - old_own_location))
+
+			if dummy_dist < old_clostest_coin_dist:
+				old_clostest_coin_indx = i
+				old_clostest_coin_dist = dummy_dist
+		if old_clostest_coin_indx:
+			if old_game_state['coins'][old_clostest_coin_indx] in new_game_state['coins']:
+				new_clostest_coin_dist = sum(abs(old_game_state['coins'][old_clostest_coin_indx] - new_own_location))
+
+				if new_clostest_coin_dist < old_clostest_coin_dist:
+					custom_events_list.append('MOVED_TO_COIN')
+				elif new_clostest_coin_dist > old_clostest_coin_dist:
+					custom_events_list.append('MOVED_AWAY_FROM_COIN')
+	except Exception as e:
+		print(e)
 	# here is a try because this code breaks down if there are less than 1 coins
 	try:
-		new_coin_locations = np.asarray(new_game_state['coins'])
+		'''new_coin_locations = np.asarray(new_game_state['coins'])
 		old_coin_locations = np.asarray(old_game_state['coins'])
 
 		#new_dist_coins = np.sum(np.abs(new_coin_locations - new_own_location), axis=1)
@@ -63,7 +82,8 @@ def custom_events(self, old_game_state: dict, new_game_state: dict):
 		old_clostest_coin_indx = np.argmin(old_dist_coins)
 
 		#check if the old clostest coin is still there
-		if np.sum((old_coin_locations[old_clostest_coin_indx] == new_coin_locations).all(axis=1)):
+		if (old_coin_locations[old_clostest_coin_indx] == new_coin_locations).all(axis=1).any():
+		#if old_coin_locations[old_clostest_coin_indx] in new_coin_locations:
 			# check if the distance has changed
 			old_clostest_coin_dist = old_dist_coins[old_clostest_coin_indx]
 			new_clostest_coin_dist = np.sum(np.abs(new_coin_locations[old_clostest_coin_indx] - new_own_location))
@@ -73,7 +93,7 @@ def custom_events(self, old_game_state: dict, new_game_state: dict):
 				custom_events_list.append('MOVED_TO_COIN')
 			
 			elif old_clostest_coin_dist < new_clostest_coin_dist:
-				custom_events_list.append('MOVED_AWAY_FROM_COIN')
+				custom_events_list.append('MOVED_AWAY_FROM_COIN')'''
 
 
 		# rewards for bombs

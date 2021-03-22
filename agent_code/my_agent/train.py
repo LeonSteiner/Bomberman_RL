@@ -75,7 +75,7 @@ def setup_training(self):
     self.loss_list = []
     self.Q_list = []
 
-    self.exploration_rate = 1
+    self.exploration_rate = .13
 
     self.total_loss = 0
 
@@ -206,7 +206,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
             
         
         torch.save({
-            'epoch': last_game_state['round'],
+            'epoch': self.epoch,
             'total_steps':self.total_steps,
             'model_state_dict': self.policy_net.state_dict(),
             'target_state_dict': self.target_net.state_dict(),
@@ -214,18 +214,20 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
             }, 'my-saved-model.tar')
 
         print('policy network model saved')
+        #create checkpoints
+        if last_game_state['round']%120 == 0:
             torch.save({
-            'epoch': last_game_state['round'],
+            'epoch': self.epoch,
             'total_steps':self.total_steps,
             'model_state_dict': self.policy_net.state_dict(),
             'target_state_dict': self.target_net.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict(),
-            }, 'checkpoints/my-saved-model{}.tar'.format(last_game_state['round']))
-        if last_game_state['round']%120 == 0:
+            }, 'checkpoints/my-saved-model{}.tar'.format(self.epoch))
+            print('checkpoint created!')
 
         # save loss for analysis
-        np.save('metrics/loss{}'.format(last_game_state['round']), np.array(self.loss_list))
-        np.save('metrics/Q{}'.format(last_game_state['round']), np.array(self.Q_list))
+        np.save('metrics/loss{}'.format(self.epoch), np.array(self.loss_list))
+        np.save('metrics/Q{}'.format(self.epoch), np.array(self.Q_list))
         self.loss_list = []
         self.Q_list = []
 
@@ -239,6 +241,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
         self.exploration_rate = max(0.1, self.exploration_rate*0.999)
     #print(self.all_actions, self.init_pos, np.round(self.exploration_rate, 3))
     self.all_actions = np.zeros(6)
+    self.epoch += 1
 
 def reward_from_events(self, events: List[str]) -> int:
     """
