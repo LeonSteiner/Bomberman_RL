@@ -41,18 +41,21 @@ class DQN(nn.Module):
         return self.head(x.view(x.size(0), -1))
 
 def custom_events(self, old_game_state: dict, new_game_state: dict):
+	if old_game_state == None:
+		return []
 	custom_events_list = []
-	#old_coin_locations = old_game_state['coins']
+	# old_coin_locations = old_game_state['coins']
 	# give pos. reward for going towards coin and neg. for away
 	# the distance is not the euclidian norm but x+y because we cannot moce diagonally
 	# this is still not perfect bc of the walls but better than nothing
 	# using try as an easy way to prevent old_game_state=None or no coins at all (latter not sure?)
+	new_own_location = np.asarray(new_game_state['self'][-1])
+	old_own_location = np.asarray(old_game_state['self'][-1])
+
+	# here is a try because this code breaks down if there are less than 1 coins
 	try:
 		new_coin_locations = np.asarray(new_game_state['coins'])
 		old_coin_locations = np.asarray(old_game_state['coins'])
-
-		new_own_location = np.asarray(new_game_state['self'][-1])
-		old_own_location = np.asarray(old_game_state['self'][-1])
 
 		#new_dist_coins = np.sum(np.abs(new_coin_locations - new_own_location), axis=1)
 		old_dist_coins = np.sum(np.abs(old_coin_locations - old_own_location), axis=1)
@@ -71,9 +74,22 @@ def custom_events(self, old_game_state: dict, new_game_state: dict):
 			
 			elif old_clostest_coin_dist < new_clostest_coin_dist:
 				custom_events_list.append('MOVED_AWAY_FROM_COIN')
-			
 
+
+		# rewards for bombs
+		for bomb in old_game_state['bombs']:
+			bomb_location = bomb[0]
+			bomb_timer = bomb[1]
+
+			#print(bomb_timer)
+			#if bomb_timer > 0:
+			old_dist_bomb = np.sum(np.abs(bomb_location - old_own_location))
+			new_dist_bomb = np.sum(np.abs(bomb_location - new_own_location))
+			if old_dist_bomb < 4:
+				if new_dist_bomb > old_dist_bomb:
+					custom_events_list.append('MOVED_AWAY_FROM_BOMB')
+				else:
+					custom_events_list.append('MOVED_TO_BOMB')
 	except Exception as e:
-		...
-
+		print(e)
 	return custom_events_list

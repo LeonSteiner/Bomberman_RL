@@ -5,6 +5,8 @@ import random
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.optim as optim
+import torch.nn.functional as F
 
 from .myfuncs import DQN
 
@@ -26,20 +28,48 @@ def setup(self):
 
     :param self: This object is passed to all callbacks and you can set arbitrary values.
     """
-    if self.train or not os.path.isfile("my-saved-model.pt"):
-        self.logger.info("Setting up model from scratch.")
-        weights = np.random.rand(len(ACTIONS))
-        self.model = DQN(15, 15, 6)
-        print('new model')
+    ##### training ######
+    self.resume_training = False
+
+    self.model = DQN(15, 15, 6)
+    if self.train or not os.path.isfile("my-saved-model.tar"):
+
+        ###### start a new model ######
+        if not os.path.isfile("my-saved-model.tar"):
+            self.logger.info("Setting up model from scratch.")
+            print('new model')
+
+        ##### continue training #######
+        else:
+            self.resume_training = True
+            self.logger.info("Train existing model.")
+            checkpoint = torch.load('my-saved-model.tar')
+            self.model.load_state_dict(checkpoint['model_state_dict'])
+            self.model.train()
+            #self.transitions = checkpoint['transition_history']
+            self.optimizer_dummy = checkpoint['optimizer_state_dict']
+            self.total_steps = checkpoint['total_steps']
+            self.epoch = checkpoint['epoch']
+
+            with open("transition_history.pt", "rb") as file:
+                self.transitions = pickle.load(file)
+            print('load model for further training')
+
+    ##### gaming #####
     else:
         self.logger.info("Loading model from saved state.")
-        with open("my-saved-model.pt", "rb") as file:
-            self.model = pickle.load(file)
-        print('load model')
+        '''with open("my-saved-model.pt", "rb") as file:
+            self.model = pickle.load(file)'''
+        checkpoint = torch.load('my-saved-model.tar')
+        self.model.load_state_dict(checkpoint['model_state_dict'])
+        self.model.eval()
+        print('load model for gaming')
     self.inv_num = 0
 
 
 def act(self, game_state: dict) -> str:
+    if game_state['step'] == 1:
+        self.init_pos = game_state['self'][-1]
     """
     Your agent should parse the input, think, and take a decision.
     When not in training mode, the maximum execution time for this method is 0.5s.
@@ -55,19 +85,21 @@ def act(self, game_state: dict) -> str:
         # return a random action
         if random.random() < self.exploration_rate:
             self.logger.debug("Choosing action purely at random.")
-            return np.random.choice(ACTIONS, p=[.22, .22, .22, .22, .12, 0.])
+            return np.random.choice(ACTIONS, p=[.2, .2, .2, .2, .15, .05])#p=[.22, .22, .22, .22, .11, 0.01])
         # make policy net choose an action
         else:
             with torch.no_grad():
                 myprobs = self.policy_net(state_to_features(game_state).view(1,1,15,15)).detach().numpy()[0]
-            myprobs = myprobs[:-1]
+            self.all_actions[np.argmax(myprobs)] += 1
+            myprobs = myprobs#[:-1]
             self.Q_list.append(np.max(myprobs))
             return ACTIONS[np.argmax(myprobs)]
     else:
         # choose only best action when not training
         with torch.no_grad():
             myprobs = self.model(state_to_features(game_state).view(1,1,15,15)).detach().numpy()[0]
-        myprobs = myprobs[:-1]
+        myprobs = myprobs#[:-1]
+        print(myprobs)
         return ACTIONS[np.argmax(myprobs)] 
     
     
@@ -95,7 +127,12 @@ def state_to_features(game_state: dict) -> np.array:
     full_field = np.copy(game_state['field'])
     coin_locations = np.array(game_state['coins']).T.tolist()
     full_field[tuple(coin_locations)] = 2 # coins have value 2 on board
-    full_field[game_state['self'][-1]] = 100 # own position has value 3
+    full_field[game_state['self'][-1]] = 10 # own position has value 3
+    
+    for bomb in game_state['bombs']:
+        full_field[bomb[0]] = -10+bomb[1]
+
     # now crop the outer borders bc they are always the same
     full_field = full_field[1:-1, 1:-1]
+    full_field = full_field/10
     return torch.from_numpy(full_field).float()
