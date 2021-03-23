@@ -10,6 +10,10 @@ import torch.nn.functional as F
 
 from .myfuncs import DQN
 
+from collections import namedtuple, deque
+Transition = namedtuple('Transition',
+                        ('state', 'action', 'next_state', 'reward'))
+
 
 ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
 
@@ -37,10 +41,12 @@ def setup(self):
         ###### start a new model ######
         if not os.path.isfile("my-saved-model.tar"):
             self.logger.info("Setting up model from scratch.")
+            self.epoch = 0
             print('new model')
 
         ##### continue training #######
         else:
+            print('loading model for further training')
             self.resume_training = True
             self.logger.info("Train existing model.")
             checkpoint = torch.load('my-saved-model.tar')
@@ -51,9 +57,10 @@ def setup(self):
             self.total_steps = checkpoint['total_steps']
             self.epoch = checkpoint['epoch']
 
+            self.target_net_dummy = checkpoint['target_state_dict']
+            self.transitions = deque(maxlen=500000)
             with open("transition_history.pt", "rb") as file:
-                self.transitions = pickle.load(file)
-            print('load model for further training')
+                self.transitions.extend(pickle.load(file))
 
     ##### gaming #####
     else:
@@ -85,7 +92,7 @@ def act(self, game_state: dict) -> str:
         # return a random action
         if random.random() < self.exploration_rate:
             self.logger.debug("Choosing action purely at random.")
-            return np.random.choice(ACTIONS, p=[.2, .2, .2, .2, .15, .05])#p=[.22, .22, .22, .22, .11, 0.01])
+            return np.random.choice(ACTIONS, p=[.2, .2, .2, .2, .05, .15])#p=[.22, .22, .22, .22, .11, 0.01])
         # make policy net choose an action
         else:
             with torch.no_grad():
@@ -125,14 +132,18 @@ def state_to_features(game_state: dict) -> np.array:
 
     # For example, you could construct several channels of equal shape, ...
     full_field = np.copy(game_state['field'])
-    coin_locations = np.array(game_state['coins']).T.tolist()
-    full_field[tuple(coin_locations)] = 2 # coins have value 2 on board
-    full_field[game_state['self'][-1]] = 10 # own position has value 3
+    coin_locations = game_state['coins']
+    #full_field[tuple(coin_locations)] = 2 # coins have value 2 on board this did not work when there were no coins
+    full_field[game_state['self'][-1]] = 10 # own position has value 10
     
     for bomb in game_state['bombs']:
         full_field[bomb[0]] = -10+bomb[1]
 
+    if coin_locations:
+        full_field[tuple(np.asarray(coin_locations).T)] = 2
+
     # now crop the outer borders bc they are always the same
     full_field = full_field[1:-1, 1:-1]
     full_field = full_field/10
+    #print(tuple(coin_locations))
     return torch.from_numpy(full_field).float()

@@ -1,4 +1,5 @@
 import numpy as np
+from typing import List
 
 import torch
 import torch.nn as nn
@@ -40,7 +41,7 @@ class DQN(nn.Module):
         x = F.relu(self.bn3(self.conv3(x)))
         return self.head(x.view(x.size(0), -1))
 
-def custom_events(self, old_game_state: dict, new_game_state: dict):
+def custom_events(self, old_game_state: dict, new_game_state: dict, events: List[str]):
 	if old_game_state == None:
 		return []
 	custom_events_list = []
@@ -110,6 +111,70 @@ def custom_events(self, old_game_state: dict, new_game_state: dict):
 					custom_events_list.append('MOVED_AWAY_FROM_BOMB')
 				else:
 					custom_events_list.append('MOVED_TO_BOMB')
+
+				# smart dodge
+				if bomb_timer > 0:
+					game_board = np.copy(old_game_state['field'])
+					game_board[game_board==1] = 0
+					game_board = np.abs(game_board)
+					explosion_sites = []
+					explosion_sites.append(bomb_location)
+					for direction in np.array([[0,1], [1,0], [-1,0], [0,-1]]):
+					    # bomb radius is 3
+					    for rad in range(1, 4):
+					        # check if adjacent field is free
+					        next_field = tuple(bomb_location+direction*rad)
+					        if not game_board[next_field]:
+					            explosion_sites.append(next_field)
+					        else:
+					            break
+
+					if tuple(old_own_location) in explosion_sites and tuple(new_own_location) not in explosion_sites:
+						custom_events_list.append('DODGED_BOMB')
+					if tuple(old_own_location) not in explosion_sites and tuple(new_own_location) in explosion_sites:
+						custom_events_list.append('ANTIDODGED_BOMB')
+
+		# edge bombs
+		if 'BOMB_DROPPED' in events:
+			dropped_bomb_location = tuple(old_own_location)
+			if dropped_bomb_location in [(1,1), (1,15), (15,1), (15,15)]:
+				custom_events_list.append('EDGE_BOMB')
+
+			####################
+			# unnecessary bomb #
+			game_board = np.copy(old_game_state['field'])
+			game_board[game_board==1] = 0
+			game_board = np.abs(game_board)
+			explosion_sites = []
+			explosion_sites.append(dropped_bomb_location)
+			for direction in np.array([[0,1], [1,0], [-1,0], [0,-1]]):
+			    # bomb radius is 3
+			    for rad in range(1, 4):
+			        # check if adjacent field is free
+			        next_field = tuple(dropped_bomb_location+direction*rad)
+			        if not game_board[next_field]:
+			            explosion_sites.append(next_field)
+			        else:
+			            break
+			#interesting targets
+			crate_locations = np.asarray(np.where(old_game_state['field']==1)).T # all crate locations
+			crate_tuples = [(xc, yc) for xc, yc in crate_locations]
+			if old_game_state['others']:
+				# also append opponents location to interesting targets
+				...
+
+			smart_bomb = False
+			for exp_site in explosion_sites:
+				if exp_site in crate_tuples:
+					smart_bomb = True
+			if smart_bomb:
+				custom_events_list.append('SMART_BOMB')
+			else:
+				custom_events_list.append('DUMB_BOMB')
+
+
+
 	except Exception as e:
 		print(e)
+
 	return custom_events_list
